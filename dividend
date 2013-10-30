@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+# encoding: UTF-8
+
+if ARGV.size != 5
+  puts 'dividend <final|interim> <date_paid> <tax_year_end> <net> <company_year_end>'
+  puts '  date_paid yyyymmdd'
+  puts '  tax_year_end yyyymmdd'
+  puts '  net net dividend actually paid out'
+  puts '  company_year_end company accounts year end date (yyyymmdd)'
+end
+
+require 'active_support/time'
+require 'active_support/core_ext/numeric/conversions'
+require 'pdfkit'
+require 'slim'
+require 'ostruct'
+
+en_yml = "#{File.dirname(__FILE__)}/en.yml"
+I18n.load_path << en_yml
+I18n.t('date.formats').each do |key, value|
+  Date::DATE_FORMATS[key] = value
+end
+
+PAGE_OPTIONS = {page_size: 'A4', margin_top: 10, margin_bottom: 10,
+                margin_left: 10, margin_right: 10}
+
+class Dividend
+  attr_reader :type, :tax_year_end, :shares, :net, :tax_credit, :gross, :amount, :company_year_end
+
+  def initialize args
+    @type = ARGV[0] == 'final' ? 'Final' : 'Interim'
+    @date_paid = Date.parse(ARGV[1])
+    @tax_year_end = Date.parse(ARGV[2]).to_s(:long)
+    @shares = 100
+    @net = ARGV[3].to_f
+    @tax_credit = @net * 0.111111
+    @gross = @net + @tax_credit
+    @amount = @net / @shares
+    @company_year_end = Date.parse(ARGV[4]).to_s(:long)
+  end
+
+  def date_paid(format = :long)
+    @date_paid.to_s(format)
+  end
+end
+
+def write_pdf
+  dividend = Dividend.new(ARGV)
+
+  html = Slim::Template.new('dividend.slim').render(dividend)
+  kit = PDFKit.new(html, PAGE_OPTIONS)
+  # File.open("dividend_#{dividend.date_paid(:file)}.html", 'w') { |f| f.write html }
+  kit.to_file("dividend_#{dividend.date_paid(:file)}.pdf")
+end
+
+write_pdf

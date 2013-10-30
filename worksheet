@@ -1,15 +1,24 @@
-# gem install wkhtmltopdf-binary active_support pdfkit slim
+#!/usr/bin/env ruby
+
+#
+# worksheet [day[am|pm]],[...]
+#   day   - day of month not working
+#   am|pm - just the morning or afternoon was taken off
+#
+# TODO: add days worked (instead of days off)
 
 require 'active_support/time'
 require 'pdfkit'
 require 'slim'
 
-PAGE_OPTIONS = {page_size: 'A4', margin_top: 10, margin_bottom: 10, 
-                margin_left: 10, margin_right: 10}
-
-def year_month(date)
-  "#{date.year}_#{"%02d" % date.month}"
+en_yml = "#{File.dirname(__FILE__)}/en.yml"
+I18n.load_path << en_yml
+I18n.t('date.formats').each do |key, value|
+  Date::DATE_FORMATS[key] = value
 end
+
+PAGE_OPTIONS = {page_size: 'A4', margin_top: 10, margin_bottom: 10,
+                margin_left: 10, margin_right: 10}
 
 def hours(day_date, days_off)
   if day_date.saturday? || day_date.sunday?
@@ -20,7 +29,7 @@ def hours(day_date, days_off)
 end
 
 def write_timesheet(date, hours_off)
-  csv = "Timesheet for #{::Date::MONTHNAMES[date.month]} #{date.year}\n\n"
+  csv = "Timesheet for #{date.month_name_year}\n\n"
   csv += "Day,Hours\n"
   total = 0
   (date.to_date..date.end_of_month.to_date).each do |d|
@@ -30,7 +39,7 @@ def write_timesheet(date, hours_off)
   end
   csv += "\n"
   csv += "Total,#{total}\n"
-  File.open("timesheet_#{year_month(date)}.csv", 'w') {|f| f.write csv }
+  File.open("timesheet_#{date.to_s(:file)}.csv", 'w') {|f| f.write csv }
   total
 end
 
@@ -45,7 +54,7 @@ class Invoice
   end
 
   def full_date
-    @date.strftime("%d %B %Y")
+    @date.to_s(:long)
   end
 
   def total_hours
@@ -70,7 +79,7 @@ def write_pdf(date, total_hours)
 
   html = Slim::Template.new('invoice.slim').render(invoice)
   kit = PDFKit.new(html, PAGE_OPTIONS)
-  kit.to_file("invoice_#{year_month(date)}.pdf")
+  kit.to_file("invoice_#{date.to_s(:file_no_day)}.pdf")
 end
 
 def to_hours_off(args)

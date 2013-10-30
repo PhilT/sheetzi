@@ -1,4 +1,5 @@
-tigen
-=====
+Scripts to generate PDFs and CSVs from slim templates and ruby code.
 
-Timesheet &amp; Invoice generator
+Dependencies:
+
+gem install wkhtmltopdf-binary active_support pdfkit slim
