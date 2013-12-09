@@ -1,13 +1,22 @@
 #!/usr/bin/env ruby
 
-#
-# worksheet [day[am|pm]],[...]
-#   day   - day of month not working
-#   am|pm - just the morning or afternoon was taken off
-#
-# TODO: add days worked (instead of days off)
+if ARGV.empty?
+  puts <<-EOB
+
+    worksheet [-i] [-f] [day[am|pm]],[...]
+      day   - day of month not working
+      am|pm - just the morning or afternoon was taken off
+      -i    - days are included instead of excluded
+      -f    - overwrite existing timesheet/invoice
+
+    Saturday and Sunday are not excluded when -i is used
+
+  EOB
+  exit
+end
 
 require 'active_support/time'
+require 'active_support/core_ext/numeric/conversions'
 require 'pdfkit'
 require 'slim'
 
@@ -20,45 +29,64 @@ end
 PAGE_OPTIONS = {page_size: 'A4', margin_top: 10, margin_bottom: 10,
                 margin_left: 10, margin_right: 10}
 
-def hours(day_date, days_off)
-  if day_date.saturday? || day_date.sunday?
-    ''
-  else
-    7.5 - days_off[day_date.day].to_f
-  end
+def file_date(prefix, date, suffix)
+  "#{prefix}_#{date.to_s(:file_no_day)}.#{suffix}"
 end
 
-def write_timesheet(date, hours_off)
-  csv = "Timesheet for #{date.month_name_year}\n\n"
+def timesheet_filename(date)
+  file_date("timesheet", date, "csv")
+end
+
+def invoice_filename(date)
+  file_date("invoice", date, "pdf")
+end
+
+def write_timesheet(date)
+  csv = "Timesheet for Ruby Web Development Services\n"
+  csv += "by Phil Thompson (Electric Visions Ltd)\n"
+  csv += "for #{date.to_s(:month_name_year)}\n\n"
   csv += "Day,Hours\n"
   total = 0
-  (date.to_date..date.end_of_month.to_date).each do |d|
-    hours = hours(d, hours_off)
-    total += hours.to_f
-    csv += "#{d.day},#{hours}\n"
+  (date..date.end_of_month.to_date).each do |d|
+    day = working_days(d)
+    total += day if day.is_a?(Float)
+    csv += "#{d.day},#{day * 7.5}\n"
   end
   csv += "\n"
-  csv += "Total,#{total}\n"
-  File.open("timesheet_#{date.to_s(:file)}.csv", 'w') {|f| f.write csv }
+  csv += "Total (hours),#{total * 7.5}\n"
+  csv += "Total (days),#{total}\n"
+  File.open(timesheet_filename(date), 'w') {|f| f.write csv }
   total
 end
 
 class Invoice
-  def initialize(date, total_hours)
+  def initialize(date, total_days)
     @date = date
-    @total_hours = total_hours
+    @total_days = total_days
   end
 
   def invoice_num
-    '%03d' % (Dir['invoice_*'].size + 1)
+    previous_invoice_count = Dir['invoice_*'].size
+    if previous_invoice_count == 0
+      puts "WARNING: NO PREVIOUS INVOICES DETECTED"
+      puts "If this is the first invoice you can ignore this warning"
+      puts "Otherwise make sure previous invoices are in the correct format:"
+      puts "    #{timesheet_filename(@date)}"
+      puts "    #{invoice_filename(@date)}"
+    end
+    '%03d' % (previous_invoice_count + 1)
   end
 
-  def full_date
-    @date.to_s(:long)
+  def month_year
+    @date.to_s(:month_name_year)
+  end
+
+  def todays_date
+    Date.today.to_s(:long)
   end
 
   def total_hours
-    @total_hours
+    @total_days * 7.5
   end
 
   def rate(rate = nil)
@@ -66,32 +94,59 @@ class Invoice
   end
 
   def days
-    days = total_hours / 7.5
+    @total_days
   end
 
   def subtotal
     rate * days
   end
+
+  def vat
+    subtotal * 0.2
+  end
+
+  def total
+    subtotal + vat
+  end
 end
 
-def write_pdf(date, total_hours)
-  invoice = Invoice.new(date, total_hours)
+def write_pdf(date, total_days)
+  invoice = Invoice.new(date, total_days)
 
   html = Slim::Template.new('invoice.slim').render(invoice)
   kit = PDFKit.new(html, PAGE_OPTIONS)
-  kit.to_file("invoice_#{date.to_s(:file_no_day)}.pdf")
+  kit.to_file(invoice_filename(date))
 end
 
-def to_hours_off(args)
-  days = {}
-  args.first.split(',').each do |day|
-    hours = day =~ /am|pm/ ? 3.75 : 7.5
-    days[day.to_i] = hours
+def working_days(date)
+  if @days_are_included
+    @days[date.day]
+  else
+    if date.saturday? || date.sunday?
+    ''
+    else
+      1.0 - @days[date.day].to_f
+    end
   end
-  days
 end
 
-date = 1.month.ago.beginning_of_month
-total_hours = write_timesheet(date, to_hours_off(ARGV))
+@days_are_included = ARGV.delete('-i')
+@overwrite = ARGV.delete('-f')
+@days = Hash[*(ARGV.first.split(',').map do |day|
+  [day.to_i, day =~ /am|pm/ ? 0.5 : 1.0]
+end.flatten)]
+
+date = 1.month.ago.beginning_of_month.to_date
+if File.exist?(timesheet_filename(date)) || File.exist?(invoice_filename(date))
+  if @overwrite
+    FileUtils.rm_f(timesheet_filename(date))
+    FileUtils.rm_f(invoice_filename(date))
+  else
+    puts "Existing timesheet and/or invoice detected for last month"
+    puts "Use -f to overwrite"
+    exit 1
+  end
+end
+total_hours = write_timesheet(date)
 write_pdf(date, total_hours)
 
