@@ -3,11 +3,15 @@
 if ARGV.empty?
   puts <<-EOB
 
-    worksheet [-i] [-f] [day[am|pm]],[...]
+    Generate timesheet and invoice for previous month
+    (or current month if day of the month is 16th to end of month)
+
+    worksheet [-i] [-f] [-p] [day[am|pm]],[...]
       day   - day of month not working
       am|pm - just the morning or afternoon was taken off
       -i    - days are included instead of excluded
       -f    - overwrite existing timesheet/invoice
+      -p    - generate invoice from 2 months ago
 
     Saturday and Sunday are not excluded when -i is used
 
@@ -120,7 +124,7 @@ end
 
 def working_days(date)
   if @days_are_included
-    @days[date.day]
+    @days[date.day] || ''
   else
     if date.saturday? || date.sunday?
     ''
@@ -130,13 +134,16 @@ def working_days(date)
   end
 end
 
+# Arguments (other args must be removed before days)
 @days_are_included = ARGV.delete('-i')
 @overwrite = ARGV.delete('-f')
+previous_month = ARGV.delete('-p') ? 2 : 1
 @days = Hash[*(ARGV.first.split(',').map do |day|
   [day.to_i, day =~ /am|pm/ ? 0.5 : 1.0]
 end.flatten)]
 
-date = 1.month.ago.beginning_of_month.to_date
+date = previous_month.month.ago.beginning_of_month.to_date
+date = date + 1.month if Date.today.day > 15
 if File.exist?(timesheet_filename(date)) || File.exist?(invoice_filename(date))
   if @overwrite
     FileUtils.rm_f(timesheet_filename(date))
