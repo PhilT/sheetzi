@@ -11,7 +11,8 @@ if ARGV.empty?
       am|pm - just the morning or afternoon was taken off
       -i    - days are included instead of excluded
       -f    - overwrite existing timesheet/invoice
-      -p    - generate invoice from 2 months ago
+      -0    - generate invoice for current month
+      -2    - generate invoice from 2 months ago
 
     Saturday and Sunday are not excluded when -i is used
 
@@ -137,7 +138,7 @@ end
 # Arguments (other args must be removed before days)
 @days_are_included = ARGV.delete('-i')
 @overwrite = ARGV.delete('-f')
-previous_month = ARGV.delete('-p') ? 2 : 1
+previous_month = (ARGV.delete('-2') || ARGV.delete('-0') || '-1').gsub('-', '').to_i
 @days = Hash[*(ARGV.first.split(',').map do |day|
   [day.to_i, day =~ /am|pm/ ? 0.5 : 1.0]
 end.flatten)]
