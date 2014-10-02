@@ -18,17 +18,15 @@ end
 
 require 'active_support/time'
 require 'active_support/core_ext/numeric/conversions'
-require 'pdfkit'
+require 'shrimp'
 require 'slim'
+require File.join(File.dirname(__FILE__), 'shrimp_config')
 
 en_yml = "#{File.dirname(__FILE__)}/en.yml"
 I18n.load_path << en_yml
 I18n.t('date.formats').each do |key, value|
   Date::DATE_FORMATS[key] = value
 end
-
-PAGE_OPTIONS = {page_size: 'A4', margin_top: 10, margin_bottom: 10,
-                margin_left: 10, margin_right: 10}
 
 def file_date(prefix, date, suffix)
   "#{prefix}_#{date.to_s(:file_no_day)}.#{suffix}"
@@ -111,12 +109,15 @@ class Invoice
   end
 end
 
+
+
 def write_pdf(date, total_days)
   invoice = Invoice.new(date, total_days)
 
-  html = Slim::Template.new('invoice.slim').render(invoice)
-  kit = PDFKit.new(html, PAGE_OPTIONS)
-  kit.to_file(invoice_filename(date))
+  html = Slim::Template.new('invoice.slim').render(invoice).encode("utf-8")
+  File.write('generated.html', html)
+  phantom = Shrimp::Phantom.new('file:///' + Dir.pwd + '/generated.html')
+  phantom.to_pdf(invoice_filename(date))
 end
 
 def working_days(date)
@@ -155,11 +156,10 @@ if File.exist?(timesheet_filename(date)) || File.exist?(invoice_filename(date))
     FileUtils.rm_f(timesheet_filename(date))
     FileUtils.rm_f(invoice_filename(date))
   else
-    puts "Existing timesheet and/or invoice detected for last month"
+    puts "Existing timesheet and/or invoice detected for #{date}"
     puts "Use -f to overwrite"
     exit 1
   end
 end
 total_hours = write_timesheet(date)
 write_pdf(date, total_hours)
-

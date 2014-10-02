@@ -2,7 +2,10 @@ Scripts to generate PDFs and CSVs from slim templates and ruby code.
 
 ## Install
 
-    gem install wkhtmltopdf-binary activesupport pdfkit slim
+Install `phantomjs` then:
+
+    gem install activesupport shrimp slim
+
 
 ## Examples
 
@@ -17,4 +20,3 @@ Generate timesheet/invoice for current month, worked every day except last week:
 Regenerate timesheet/invoice for 2 months ago, only worked a couple of days plus 1 half day
 
     ./worksheet -f -2 -i 3,4,5am
-

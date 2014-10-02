@@ -11,18 +11,16 @@ end
 
 require 'active_support/time'
 require 'active_support/core_ext/numeric/conversions'
-require 'pdfkit'
+require 'shrimp'
 require 'slim'
 require 'ostruct'
+require File.join(File.dirname(__FILE__), 'shrimp_config')
 
 en_yml = "#{File.dirname(__FILE__)}/en.yml"
 I18n.load_path << en_yml
 I18n.t('date.formats').each do |key, value|
   Date::DATE_FORMATS[key] = value
 end
-
-PAGE_OPTIONS = {page_size: 'A4', margin_top: 10, margin_bottom: 10,
-                margin_left: 10, margin_right: 10}
 
 class Dividend
   attr_reader :type, :tax_year_end, :shares, :net, :tax_credit, :gross, :amount, :company_year_end
@@ -48,9 +46,10 @@ def write_pdf
   dividend = Dividend.new(ARGV)
 
   html = Slim::Template.new('dividend.slim').render(dividend)
-  kit = PDFKit.new(html, PAGE_OPTIONS)
-  # File.open("dividend_#{dividend.date_paid(:file)}.html", 'w') { |f| f.write html }
-  kit.to_file("dividend_#{dividend.date_paid(:file)}.pdf")
+
+  File.write('generated.html', html)
+  phantom = Shrimp::Phantom.new('file:///' + Dir.pwd + '/generated.html')
+  phantom.to_pdf("dividend_#{dividend.date_paid(:file)}.pdf")
 end
 
 write_pdf
