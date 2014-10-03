@@ -20,13 +20,7 @@ require 'active_support/time'
 require 'active_support/core_ext/numeric/conversions'
 require 'shrimp'
 require 'slim'
-require File.join(File.dirname(__FILE__), 'shrimp_config')
-
-en_yml = "#{File.dirname(__FILE__)}/en.yml"
-I18n.load_path << en_yml
-I18n.t('date.formats').each do |key, value|
-  Date::DATE_FORMATS[key] = value
-end
+require_relative 'base'
 
 def file_date(prefix, date, suffix)
   "#{prefix}_#{date.to_s(:file_no_day)}.#{suffix}"
@@ -60,6 +54,7 @@ end
 
 class Invoice
   def initialize(date, total_days)
+    @name = 'invoice'
     @date = date
     @total_days = total_days
   end
@@ -107,17 +102,14 @@ class Invoice
   def total
     subtotal + vat
   end
-end
 
+  def name(ext)
+    "#{@name}.#{ext}"
+  end
 
-
-def write_pdf(date, total_days)
-  invoice = Invoice.new(date, total_days)
-
-  html = Slim::Template.new('invoice.slim').render(invoice).encode("utf-8")
-  File.write('generated.html', html)
-  phantom = Shrimp::Phantom.new('file:///' + Dir.pwd + '/generated.html')
-  phantom.to_pdf(invoice_filename(date))
+  def filename
+    invoice_filename(@date)
+  end
 end
 
 def working_days(date)
@@ -161,5 +153,5 @@ if File.exist?(timesheet_filename(date)) || File.exist?(invoice_filename(date))
     exit 1
   end
 end
-total_hours = write_timesheet(date)
-write_pdf(date, total_hours)
+total_days = write_timesheet(date)
+write_pdf(Invoice.new(date, total_days))

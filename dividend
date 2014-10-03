@@ -14,18 +14,14 @@ require 'active_support/core_ext/numeric/conversions'
 require 'shrimp'
 require 'slim'
 require 'ostruct'
-require File.join(File.dirname(__FILE__), 'shrimp_config')
+require_relative 'base'
 
-en_yml = "#{File.dirname(__FILE__)}/en.yml"
-I18n.load_path << en_yml
-I18n.t('date.formats').each do |key, value|
-  Date::DATE_FORMATS[key] = value
-end
 
 class Dividend
   attr_reader :type, :tax_year_end, :shares, :net, :tax_credit, :gross, :amount, :company_year_end
 
   def initialize args
+    @name = 'dividend'
     @type = ARGV[0] == 'final' ? 'Final' : 'Interim'
     @date_paid = Date.parse(ARGV[1])
     @tax_year_end = Date.parse(ARGV[2]).to_s(:long)
@@ -40,16 +36,14 @@ class Dividend
   def date_paid(format = :long)
     @date_paid.to_s(format)
   end
+
+  def name(ext)
+    "#{name}.#{ext}"
+  end
+
+  def filename
+    "#{@name}_#{date_paid(:file)}.pdf"
+  end
 end
 
-def write_pdf
-  dividend = Dividend.new(ARGV)
-
-  html = Slim::Template.new('dividend.slim').render(dividend)
-
-  File.write('generated.html', html)
-  phantom = Shrimp::Phantom.new('file:///' + Dir.pwd + '/generated.html')
-  phantom.to_pdf("dividend_#{dividend.date_paid(:file)}.pdf")
-end
-
-write_pdf
+write_pdf(Dividend.new(ARGV))
