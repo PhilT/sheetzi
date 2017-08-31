@@ -2,9 +2,13 @@ Scripts to generate PDFs and CSVs from slim templates and ruby code.
 
 ## Install
 
-Install `phantomjs` then:
+    gem install activesupport wicked_pdf wkhtmltopdf slim
 
-    gem install activesupport shrimp slim
+## Usage
+
+See available options:
+
+    path/to/sheetzi/worksheet
 
 
 ## Examples

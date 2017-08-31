@@ -11,7 +11,7 @@ end
 
 require 'active_support/time'
 require 'active_support/core_ext/numeric/conversions'
-require 'shrimp'
+require 'wicked_pdf'
 require 'slim'
 require 'ostruct'
 require_relative 'base'
