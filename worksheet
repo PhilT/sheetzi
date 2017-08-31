@@ -16,6 +16,7 @@ if ARGV.empty?
   exit
 end
 
+require 'active_support'
 require 'active_support/time'
 require 'active_support/core_ext/numeric/conversions'
 require 'shrimp'

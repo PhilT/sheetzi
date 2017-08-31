@@ -9,9 +9,11 @@ Install `phantomjs` then:
 
 ## Examples
 
+You need to be in a folder with your invoice template. Then:
+
 Generate timesheet/invoice for last month, worked every week day:
 
-    ./worksheet -1
+    path/to/tigen/worksheet -1
 
 Generate timesheet/invoice for current month, worked every day except last week:
 
