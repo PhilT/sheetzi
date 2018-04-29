@@ -2,14 +2,25 @@ Scripts to generate PDFs and CSVs from slim templates and ruby code.
 
 ## Install
 
-    gem install activesupport wicked_pdf wkhtmltopdf slim
+    gem install activesupport slim wicked_pdf wkhtmltopdf-binary
 
 ## Usage
 
-See available options:
+To see available options:
 
     path/to/sheetzi/worksheet
 
+## Docker for Windows
+
+Create an `invoice.ps1` in your path with the content:
+
+    docker run -t -v ${pwd}:/data sheetzi /app/worksheet $args
+
+Then call with:
+
+    invoice -0 -x "2,3"
+
+Note the use of the quotes to make a single argument.
 
 ## Examples
 

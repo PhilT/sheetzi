@@ -36,27 +36,45 @@ def invoice_filename(date)
 end
 
 def write_timesheet(date)
-  csv = "Timesheet for Ruby Web Development Services\n"
+  csv = "#{@config['service']}\n"
   csv += "by Phil Thompson (Electric Visions Ltd)\n"
-  csv += "for #{date.to_s(:month_name_year)}\n\n"
+  csv += "for #{date.to_s(:month_name_year)}\n"
+  csv += "#{@config['client_reference_label']} #{@config['client_reference']}\n"
+  csv += "\n"
   csv += "Day,Hours\n"
   total = 0
   (date..date.end_of_month.to_date).each do |d|
     day = working_days(d)
     total += day if day.is_a?(Float)
-    csv += "#{d.day},#{day * 7.5}\n"
+    csv += "#{d.day},#{day * @hours_per_day}\n"
   end
   csv += "\n"
-  csv += "Total (hours),#{total * 7.5}\n"
+  csv += "Total (hours),#{total * @hours_per_day}\n"
   csv += "Total (days),#{total}\n"
+  csv += "\n"
+  csv += "\n"
+  csv += "Contractor Signature:,,______________________________\n"
+  csv += "\n"
+  csv += "Contractor Printed Name:,,______________________________\n"
+  csv += "\n"
+  csv += "Date:,,______________________________\n"
+  csv += "\n"
+  csv += "\n"
+  csv += "Client Signature:,,______________________________\n"
+  csv += "\n"
+  csv += "Client Printed Name:,,______________________________\n"
+  csv += "\n"
+  csv += "Date:,,______________________________\n"
+
   File.open(timesheet_filename(date), 'w') {|f| f.write csv }
   total
 end
 
 class Invoice
-  def initialize(date, total_days)
+  def initialize(date, total_days, hours_per_day)
     @name = 'invoice'
     @date = date
+    @hours_per_day = hours_per_day
     @total_days = total_days
   end
 
@@ -81,7 +99,7 @@ class Invoice
   end
 
   def total_hours
-    @total_days * 7.5
+    @total_days * @hours_per_day
   end
 
   def rate(rate = nil)
@@ -133,12 +151,16 @@ if @days_are_included && @days_are_excluded
   exit 1
 end
 
+require 'yaml'
+@config = YAML.load(File.open 'config.yml')
+@hours_per_day = @config['hours_per_day']
+
 @overwrite = ARGV.delete('-f')
 month = (0..12).detect {|n| ARGV.delete("-#{n}") }
 if ARGV.size > 0
-  @days = Hash[*(ARGV.first.split(',').map do |day|
+  @days = ARGV.first.split(',').map do |day|
     [day.to_i, day =~ /am|pm/ ? 0.5 : 1.0]
-  end.flatten)]
+  end.to_h
 else
   @days = []
 end
@@ -155,4 +177,4 @@ if File.exist?(timesheet_filename(date)) || File.exist?(invoice_filename(date))
   end
 end
 total_days = write_timesheet(date)
-write_pdf(Invoice.new(date, total_days))
+write_pdf(Invoice.new(date, total_days, @hours_per_day))
