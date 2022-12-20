@@ -2,7 +2,15 @@ Scripts to generate PDFs and CSVs from slim templates and ruby code.
 
 ## Install
 
-    gem install activesupport slim wicked_pdf wkhtmltopdf-binary
+    gem install activesupport slim wicked_pdf
+
+### On Windows
+
+Grab the wkhtmltopdf binary from https://wkhtmltopdf.org/downloads.html
+
+### On Linux
+
+    gem install wkhtmltopdf-binary
 
 ## Usage
 

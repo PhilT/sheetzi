@@ -24,7 +24,7 @@ require 'slim'
 require_relative 'base'
 
 def file_date(prefix, date, suffix)
-  "#{prefix}_#{date.to_s(:file_no_day)}.#{suffix}"
+  "#{prefix}_#{date.to_fs(:file_no_day)}.#{suffix}"
 end
 
 def timesheet_filename(date)
@@ -38,7 +38,7 @@ end
 def write_timesheet(date)
   csv = "#{@config['service']}\n"
   csv += "by Phil Thompson (Electric Visions Ltd)\n"
-  csv += "for #{date.to_s(:month_name_year)}\n"
+  csv += "for #{date.to_fs(:month_name_year)}\n"
   csv += "#{@config['client_reference_label']} #{@config['client_reference']}\n"
   csv += "\n"
   csv += "Day,Hours\n"
@@ -91,15 +91,19 @@ class Invoice
   end
 
   def month_year
-    @date.to_s(:month_name_year)
+    @date.to_fs(:month_name_year)
   end
 
   def todays_date
-    Date.today.to_s(:long)
+    Date.today.to_fs(:long)
   end
 
   def total_hours
     @total_days * @hours_per_day
+  end
+
+  def currency(amount, options = {})
+    ActiveSupport::NumberHelper.number_to_currency(amount, options)
   end
 
   def rate(rate = nil)
