@@ -7,8 +7,3 @@ en:
       file_no_day: '%Y_%m'
       file: '%Y_%m_%d'
       month_name_year: '%B %Y'
-
-  number:
-    currency:
-      format:
-        unit: £
