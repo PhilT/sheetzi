@@ -1,8 +1,7 @@
 #!/usr/bin/env ruby
 
 if ARGV.empty?
-  puts <<-EOB
-
+  puts <<-END_USAGE
     Generate a timesheet (CSV) and invoice (PDF).
 
     invoice path [-f] [-p] -n [-x|-i [day[am|pm]],[...]]
@@ -13,34 +12,37 @@ if ARGV.empty?
       -i    - specify days to include
       am|pm - just the morning or afternoon was taken off (half a day)
 
-  EOB
+  END_USAGE
   exit
 end
- 
+
 require 'bundler/setup'
 require 'active_support'
 require 'active_support/time'
 require 'active_support/core_ext/numeric/conversions'
 require 'prawn'
+require 'yaml'
+require 'fileutils'
 
 # Arguments (other args must be removed before days)
+CLIENT_PATH = ARGV.delete_at(0)
 days_are_included = ARGV.delete('-i')
 days_are_excluded = ARGV.delete('-x')
 if days_are_included && days_are_excluded
-  puts "Days can only be included or excluded. Not both. Specify -i or -x."
+  puts 'Days can only be included or excluded. Not both. Specify -i or -x.'
   exit 1
 end
 
-I18n.load_path << "#{File.dirname(__FILE__)}/en.yml"
+I18n.load_path << "#{__dir__}/en.yml"
 I18n.t('date.formats').each do |key, value|
   Date::DATE_FORMATS[key] = value
 end
 
-def currency(amount, options = {})
-  "£#{'%.2f' % amount}"
+def currency(amount)
+  format '£%.2f', amount
 end
 
-def vat()
+def vat
   subtotal * 0.2
 end
 
@@ -49,51 +51,51 @@ def total
 end
 
 def invoice_num(date)
-  previous_invoice_count = Dir['invoice_*'].size
-  if previous_invoice_count == 0
-    puts "WARNING: NO PREVIOUS INVOICES DETECTED"
-    puts "If this is the first invoice you can ignore this warning"
-    puts "Otherwise make sure previous invoices are in the correct format:"
+  previous_invoice_count = Dir[File.join(CLIENT_PATH, 'invoice_*')].size
+  if previous_invoice_count.zero?
+    puts 'WARNING: NO PREVIOUS INVOICES DETECTED'
+    puts 'If this is the first invoice you can ignore this warning'
+    puts 'Otherwise make sure previous invoices are in the correct format:'
     puts "    #{invoice_filename(date)}"
   end
-  '%03d' % (previous_invoice_count + 1)
+  format '%03d', (previous_invoice_count + 1)
 end
 
 def file_date(prefix, date, suffix)
   "#{prefix}_#{date.to_fs(:file_no_day)}.#{suffix}"
 end
 
+def timesheet_filename(date)
+  file_date('timesheet', date, 'csv')
+end
+
 def invoice_filename(date)
-  file_date("invoice", date, "pdf")
+  file_date('invoice', date, 'pdf')
 end
 
 def working_days(date, days, days_are_included)
   if days_are_included
     days[date.day] || ''
-  else
-    if date.saturday? || date.sunday?
+  elsif date.saturday? || date.sunday?
     ''
-    else
-      1.0 - days[date.day].to_f
-    end
+  else
+    1.0 - days[date.day].to_f
   end
 end
 
-
-require 'yaml'
-
-c = YAML.load(File.open File.join(__dir__, 'config.yml'))
-c = c.merge YAML.load(File.open 'config.yml')
+c = YAML.safe_load(File.open(File.join(__dir__, 'config.yml')))
+c = c.merge YAML.safe_load(File.open(File.join(CLIENT_PATH, 'config.yml')))
 
 overwrite = ARGV.delete('-f')
-month = (0..12).detect {|n| ARGV.delete("-#{n}") }
-if ARGV.size > 0
-  days = ARGV.first.split(',').map do |day|
-    [day.to_i, day =~ /am|pm/ ? 0.5 : 1.0]
-  end.to_h
-else
-  days = []
-end
+month = (0..12).detect { |n| ARGV.delete("-#{n}") }
+days =
+  if !ARGV.empty?
+    ARGV.first.split(',').map do |day|
+      [day.to_i, day =~ /am|pm/ ? 0.5 : 1.0]
+    end.to_h
+  else
+    []
+  end
 
 date = month.month.ago.beginning_of_month.to_date
 
@@ -111,32 +113,60 @@ end
 
 grey = '999999'
 
-invoice_path = invoice_filename(date)
+def write_timesheet(date, cfg, days, days_are_included)
+  csv = "#{cfg['service']}\n"
+  csv += "by #{cfg['account_name']} (#{cfg['company']})\n"
+  csv += "for #{date.to_fs(:month_name_year)}\n"
+  csv += "#{cfg['client_reference_label']} #{cfg['client_reference']}\n"
+  csv += "Generated on: #{Date.today.to_fs(:long)}\n"
+  csv += "\n"
+  csv += "Day,Hours\n"
+  total = 0
+  (date..date.end_of_month.to_date).each do |d|
+    day = working_days(d, days, days_are_included)
+    total += day if day.is_a?(Float)
+    csv += "#{d.day},#{day * cfg['hours_per_day']}\n"
+  end
+  csv += "\n"
+  csv += "Total (hours),#{total * cfg['hours_per_day']}\n"
+  csv += "Total (days),#{total}\n"
+  csv += "\n"
+  csv += "\n"
+  csv += "\n"
+
+  File.open(File.join(CLIENT_PATH, timesheet_filename(date)), 'w') { |f| f.write csv }
+  total
+end
+
+invoice_path = File.join(CLIENT_PATH, invoice_filename(date))
 
 if File.exist?(invoice_path)
   if overwrite
     FileUtils.rm_f(invoice_path)
   else
     puts "Existing invoice detected for #{date}"
-    puts "Use -f to overwrite"
+    puts 'Use -f to overwrite'
     exit 1
   end
 end
 
+write_timesheet(date, c, days, days_are_included)
+
+FONT_PATH = '/nix/store/3xh7wz81amv6qcvk9bz62z95dlvpvs14-noto-fonts-24.3.1/share/fonts/noto/NotoSans[wdth,wght].ttf'.freeze
 Prawn::Document.generate(invoice_path) do
   font_families.update(
-    'SourceSans3 Light' => {
-      normal: "/home/phil/.local/share/fonts/SourceSans3-Light.otf",
-      bold: "/home/phil/.local/share/fonts/SourceSans3-Regular.otf"
+    'FreeSans' => {
+      normal: FONT_PATH,
+      bold: FONT_PATH
     }
   )
 
-  font 'SourceSans3 Light'
+  font 'FreeSans'
   font_size 14
 
   # ADDRESS
   float do
-    font_size(25) { text "#{c['company']}" }
+    font_size(25) { text c['company'].to_s }
     move_down 10
     padded_text "#{c['address1']}, #{c['address2']}, #{c['address3']}"
     padded_text c['email']
@@ -145,7 +175,7 @@ Prawn::Document.generate(invoice_path) do
   end
 
   font_size(25) do
-    text "INVOICE", color: grey, align: :right
+    text 'INVOICE', color: grey, align: :right
   end
   move_down 30
   pad_bottom(10) do
@@ -161,7 +191,7 @@ Prawn::Document.generate(invoice_path) do
   padded_text c['client_name']
   padded_text c['client_address']
   move_down 20
-  
+
   # BILL
   table_top = cursor - 10
   bounding_box([0, table_top], width: 200) do
@@ -173,7 +203,7 @@ Prawn::Document.generate(invoice_path) do
   bounding_box([250, table_top], width: 100) do
     text 'DAYS', style: :bold
     move_down 10
-    text "#{total_days}"
+    text total_days.to_s
   end
 
   bounding_box([350, table_top], width: 100) do
@@ -203,12 +233,12 @@ Prawn::Document.generate(invoice_path) do
   subtotal = c['rate'] * total_days
   vat = subtotal * 0.2
   bounding_box([450, total_cursor], width: 90) do
-    text (currency (vat)), align: :right
-    text (currency (subtotal + vat)), align: :right
+    text currency(vat), align: :right
+    text currency(subtotal + vat), align: :right
   end
 
   text 'Payment terms', style: :bold, size: 18
-  padded_text "Payment due in #{c['payment_terms']} days"
+  padded_text "Please pay within #{c['payment_terms']} days"
   move_down 5
   padded_text "Name: <b>#{c['account_name']}</b>", inline_format: true
   padded_text "Sort code: <b>#{c['account_sortcode']}</b>", inline_format: true

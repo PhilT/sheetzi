@@ -1,9 +1,11 @@
-with import <nixpkgs> {};
-
-mkShell {
+with (import <nixpkgs> {});
+let
+  gems = bundlerEnv {
+    name = "ruby-env";
+    inherit ruby;
+    gemdir = ./.;
+  };
+in stdenv.mkDerivation {
   name = "ruby-env";
-  packages = [
-    ruby
-    bundix
-  ];
+  buildInputs = [bundix gems ruby];
 }
