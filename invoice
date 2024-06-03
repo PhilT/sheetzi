@@ -152,7 +152,8 @@ end
 
 write_timesheet(date, c, days, days_are_included)
 
-FONT_PATH = '/nix/store/3xh7wz81amv6qcvk9bz62z95dlvpvs14-noto-fonts-24.3.1/share/fonts/noto/NotoSans[wdth,wght].ttf'.freeze
+FONTS_PATH = `ls -1 /nix/store | grep -m1 noto-fonts-24.3.1`.strip
+FONT_PATH = "/nix/store/#{FONTS_PATH}/share/fonts/noto/NotoSans[wdth,wght].ttf".freeze
 Prawn::Document.generate(invoice_path) do
   font_families.update(
     'FreeSans' => {

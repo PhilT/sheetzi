@@ -1,11 +1,13 @@
 with (import <nixpkgs> {});
 let
   gems = bundlerEnv {
-    name = "ruby-env";
-    inherit ruby;
+    name = "gemss-for-sheetzi";
+    ruby = ruby_3_2;
     gemdir = ./.;
   };
-in stdenv.mkDerivation {
-  name = "ruby-env";
-  buildInputs = [bundix gems ruby];
+in mkShell {
+  buildInputs = [
+    gems
+    gems.wrappedRuby
+  ];
 }
