@@ -6,6 +6,7 @@ if ARGV.empty?
 
     invoice path [-f] [-p] -n [-x|-i [day[am|pm]],[...]]
       path  - path to the client directory
+      -r    - reissue invoice, adds an -Rn (where n is a number) to the invoice number
       -f    - overwrite existing timesheet/invoice
       -n    - generate timesheet/invoice for n months ago (-0 to -12)
       -x    - specify days to exclude (sat/sun excluded anyway)
@@ -26,6 +27,7 @@ require 'fileutils'
 
 # Arguments (other args must be removed before days)
 CLIENT_PATH = ARGV.delete_at(0)
+reissue = ARGV.delete('-r')
 days_are_included = ARGV.delete('-i')
 days_are_excluded = ARGV.delete('-x')
 if days_are_included && days_are_excluded
@@ -42,35 +44,37 @@ def currency(amount)
   format '£%.2f', amount
 end
 
-def vat
-  subtotal * 0.2
-end
-
-def total
-  subtotal + vat
-end
-
-def invoice_num(date)
-  previous_invoice_count = Dir[File.join(CLIENT_PATH, 'invoice_*')].size
+def invoice_num(date, reissue)
+  invoices = 
+    Dir[File.join(CLIENT_PATH, 'invoice_*.pdf')]
+    .select{|i| i =~ /\d{4}_\d{2}.pdf/}
+    .select do |i| 
+      parts = i.split(/_|\./)
+      d = Date.parse("#{parts[1]}#{parts[2]}01")
+      d < date
+    end
+  previous_invoice_count = invoices.size
   if previous_invoice_count.zero?
     puts 'WARNING: NO PREVIOUS INVOICES DETECTED'
     puts 'If this is the first invoice you can ignore this warning'
     puts 'Otherwise make sure previous invoices are in the correct format:'
-    puts "    #{invoice_filename(date)}"
+    puts "    #{invoice_filename(date, reissue)}"
   end
-  format '%03d', (previous_invoice_count + 1)
+  issue = reissue ? 'R1' : ''
+  format '%03d%s', (previous_invoice_count + 1), issue
 end
 
-def file_date(prefix, date, suffix)
-  "#{prefix}_#{date.to_fs(:file_no_day)}.#{suffix}"
+def file_date(prefix, date, reissue, suffix)
+  issue = reissue ? '_R' : ''
+  "#{prefix}_#{date.to_fs(:file_no_day)}#{issue}.#{suffix}"
 end
 
-def timesheet_filename(date)
-  file_date('timesheet', date, 'csv')
+def timesheet_filename(date, reissue)
+  file_date('timesheet', date, reissue, 'csv')
 end
 
-def invoice_filename(date)
-  file_date('invoice', date, 'pdf')
+def invoice_filename(date, reissue)
+  file_date('invoice', date, reissue, 'pdf')
 end
 
 def working_days(date, days, days_are_included)
@@ -86,6 +90,7 @@ end
 c = YAML.safe_load(File.open(File.join(__dir__, 'config.yml')))
 c = c.merge YAML.safe_load(File.open(File.join(CLIENT_PATH, 'config.yml')))
 
+vat_exempt = !c['vat']
 overwrite = ARGV.delete('-f')
 month = (0..12).detect { |n| ARGV.delete("-#{n}") }
 days =
@@ -113,7 +118,7 @@ end
 
 grey = '999999'
 
-def write_timesheet(date, cfg, days, days_are_included)
+def write_timesheet(date, cfg, days, days_are_included, reissue)
   csv = "#{cfg['service']}\n"
   csv += "by #{cfg['account_name']} (#{cfg['company']})\n"
   csv += "for #{date.to_fs(:month_name_year)}\n"
@@ -134,11 +139,11 @@ def write_timesheet(date, cfg, days, days_are_included)
   csv += "\n"
   csv += "\n"
 
-  File.open(File.join(CLIENT_PATH, timesheet_filename(date)), 'w') { |f| f.write csv }
+  File.open(File.join(CLIENT_PATH, timesheet_filename(date, reissue)), 'w') { |f| f.write csv }
   total
 end
 
-invoice_path = File.join(CLIENT_PATH, invoice_filename(date))
+invoice_path = File.join(CLIENT_PATH, invoice_filename(date, reissue))
 
 if File.exist?(invoice_path)
   if overwrite
@@ -150,9 +155,9 @@ if File.exist?(invoice_path)
   end
 end
 
-write_timesheet(date, c, days, days_are_included)
+write_timesheet(date, c, days, days_are_included, reissue)
 
-FONTS_PATH = `ls -1 /nix/store | grep -m1 noto-fonts-24.3.1`.strip
+FONTS_PATH = `ls -1 /nix/store | grep noto-fonts-24.3.1`.split.find{ |f| f =~ /noto-fonts-24.3.1$/ }
 FONT_PATH = "/nix/store/#{FONTS_PATH}/share/fonts/noto/NotoSans[wdth,wght].ttf".freeze
 Prawn::Document.generate(invoice_path) do
   font_families.update(
@@ -172,15 +177,18 @@ Prawn::Document.generate(invoice_path) do
     padded_text "#{c['address1']}, #{c['address2']}, #{c['address3']}"
     padded_text c['email']
     padded_text "Company no. #{c['company_no']}"
-    padded_text "VAT no. #{c['vat_no']}"
+    padded_text "VAT no. #{c['vat_no']}" unless vat_exempt
   end
 
   font_size(25) do
     text 'INVOICE', color: grey, align: :right
   end
+  font_size(20) do
+    text 'Reissue', align: :right
+  end
   move_down 30
   pad_bottom(10) do
-    text "INVOICE NO: <b>#{c['invoice_prefix']}#{invoice_num(date)}</b>", align: :right, inline_format: true
+    text "INVOICE NO: <b>#{c['invoice_prefix']}#{invoice_num(date, reissue)}</b>", align: :right, inline_format: true
   end
   text "DATE: <b>#{Date.today.to_fs(:long)}</b>", align: :right, inline_format: true
 
@@ -227,14 +235,14 @@ Prawn::Document.generate(invoice_path) do
 
   total_cursor = cursor
   bounding_box([350, total_cursor], width: 95) do
-    text 'VAT (20%)', style: :bold, align: :right
+    text 'VAT (20%)', style: :bold, align: :right unless vat_exempt
     text 'TOTAL', style: :bold, align: :right
   end
 
   subtotal = c['rate'] * total_days
-  vat = subtotal * 0.2
+  vat = subtotal * (vat_exempt ? 0 : 0.2)
   bounding_box([450, total_cursor], width: 90) do
-    text currency(vat), align: :right
+    text currency(vat), align: :right unless vat_exempt
     text currency(subtotal + vat), align: :right
   end
 
