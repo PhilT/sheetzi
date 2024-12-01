@@ -2,7 +2,7 @@ Scripts to generate PDFs and CSVs from ruby code.
 
 ## Install
 
-bundix -m
+Copy `config.yml.example` to `/data/electricvisions/clients/config.yml` and populate.
 
 ## Usage
 

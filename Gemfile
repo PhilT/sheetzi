@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-ruby '3.2.4'
+ruby File.read('.ruby-version').strip
 
 gem 'activesupport'
 gem 'matrix'

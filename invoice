@@ -87,7 +87,7 @@ def working_days(date, days, days_are_included)
   end
 end
 
-c = YAML.safe_load(File.open(File.join(__dir__, 'config.yml')))
+c = YAML.safe_load(File.open(File.expand_path File.join(CLIENT_PATH, '../config.yml')))
 c = c.merge YAML.safe_load(File.open(File.join(CLIENT_PATH, 'config.yml')))
 
 vat_exempt = !c['vat']
