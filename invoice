@@ -184,7 +184,7 @@ Prawn::Document.generate(invoice_path) do
     text 'INVOICE', color: grey, align: :right
   end
   font_size(20) do
-    text 'Reissue', align: :right
+    text 'Reissue', align: :right if reissue
   end
   move_down 30
   pad_bottom(10) do
